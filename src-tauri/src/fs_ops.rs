@@ -312,6 +312,7 @@ pub fn join_path(base: String, name: String) -> CmdResult<String> {
 }
 
 #[tauri::command]
+#[allow(dead_code)]
 pub fn create_archive_placeholder() -> CmdResult<()> {
     Ok(())
 }
