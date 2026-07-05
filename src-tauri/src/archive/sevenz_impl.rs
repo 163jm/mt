@@ -13,7 +13,8 @@ fn entry_name(path: &str) -> String {
 }
 
 fn ft_to_millis(ft: &sevenz_rust::nt_time::FileTime) -> i64 {
-    ft.to_unix_time().unwrap_or(0) * 1000
+    // to_unix_time 在 0.6 中直接返回 i64(已为秒),无 Result
+    ft.to_unix_time() * 1000
 }
 
 pub fn list(path: &str) -> CmdResult<Vec<ArchiveEntry>> {
