@@ -2,6 +2,7 @@ use std::fmt;
 
 /// 统一错误类型,可序列化为字符串返回给前端
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct AppError(pub String);
 
 impl fmt::Display for AppError {
@@ -39,6 +40,7 @@ impl From<serde_json::Error> for AppError {
 /// 命令返回类型
 pub type CmdResult<T> = Result<T, String>;
 
+#[allow(dead_code)]
 pub fn err<T>(msg: impl Into<String>) -> CmdResult<T> {
     Err(msg.into())
 }
