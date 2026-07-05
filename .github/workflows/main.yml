@@ -1,0 +1,139 @@
+name: Build MT 管理器
+
+on:
+  workflow_dispatch:
+
+env:
+  CARGO_INCREMENTAL: 0
+  RUST_BACKTRACE: 1
+  # 关闭cargo的自定义进度条,日志更干净
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Windows 构建
+    runs-on: windows-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: 安装 Rust 工具链
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: 缓存 Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('src-tauri/Cargo.lock', 'src-tauri/Cargo.toml') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: 安装前端依赖
+        run: npm ci || npm install
+
+      - name: 类型检查
+        run: npx tsc --noEmit -p tsconfig.json
+        continue-on-error: true
+
+      - name: 生成应用图标(若缺失)
+        shell: bash
+        run: |
+          if [ ! -d src-tauri/icons ] || [ -z "$(ls -A src-tauri/icons 2>/dev/null)" ]; then
+            echo "未检测到图标,生成占位图标..."
+            mkdir -p src-tauri/icons
+            # 使用 Tauri 自带命令从一个简单 PNG 生成全套图标
+            npm run tauri -- icon --help >/dev/null 2>&1 || true
+            # 如果连源 PNG 也没有,先用 PowerShell 画一个 1024x1024 的橙色方块
+            if [ ! -f app-icon.png ]; then
+              powershell -Command "Add-Type -AssemblyName System.Drawing; \$bmp = New-Object System.Drawing.Bitmap 1024,1024; \$g = [System.Drawing.Graphics]::FromImage(\$bmp); \$g.Clear([System.Drawing.Color]::FromArgb(240,160,32)); \$g.SmoothingMode='AntiAlias'; \$font = New-Object System.Drawing.Font 'Arial',480,[System.Drawing.FontStyle]::Bold; \$brush = [System.Drawing.Brushes]::White; \$sf = New-Object System.Drawing.StringFormat; \$sf.Alignment='Center'; \$sf.LineAlignment='Center'; \$g.DrawString('MT',\$font,\$brush,(New-Object System.Drawing.RectangleF 0,0,1024,1024),\$sf); \$bmp.Save('app-icon.png',[System.Drawing.Imaging.ImageFormat]::Png); \$g.Dispose(); \$bmp.Dispose()"
+            fi
+            npm run tauri -- icon app-icon.png || echo "图标生成跳过,使用占位"
+          fi
+
+      - name: 构建 Tauri 应用
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'MT 管理器 ${{ github.ref_name }}'
+          releaseBody: 'MT 管理器 Windows 版发布包'
+          releaseDraft: true
+          prerelease: false
+          args: --target x86_64-pc-windows-msvc
+
+      - name: 上传构建产物(NSIS / MSI)
+        uses: actions/upload-artifact@v4
+        with:
+          name: mt-manager-windows
+          path: |
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
+            src-tauri/target/x86_64-pc-windows-msvc/release/*.exe
+          if-no-files-found: warn
+          retention-days: 30
+
+  build-linux:
+    name: Linux 构建(可选,用于验证编译)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    continue-on-error: true
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Linux Tauri 系统依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libglib2.0-dev \
+            libgtk-3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            pkg-config \
+            build-essential
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: 安装 Rust 工具链
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: 缓存 Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('src-tauri/Cargo.lock', 'src-tauri/Cargo.toml') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: 安装前端依赖
+        run: npm ci || npm install
+
+      - name: 验证 Rust 编译
+        run: cd src-tauri && cargo check --message-format=short
+        env:
+          # 7z-rust 在 Linux 编译可能需要
+          RUSTFLAGS: ''
+
+      - name: 前端构建
+        run: npx vite build
