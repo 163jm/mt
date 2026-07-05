@@ -1,4 +1,4 @@
-use crate::error::{map_err, CmdResult};
+use crate::error::CmdResult;
 use crate::models::{ContentHit, SearchHit};
 use regex::bytes::Regex as BytesRegex;
 use regex::Regex;
