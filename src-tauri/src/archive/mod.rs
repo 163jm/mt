@@ -152,9 +152,13 @@ pub fn archive_create(
     }
 }
 
-/// 内部工具:把修改时间转毫秒
-pub(crate) fn dt_to_millis(dt: zip::DateTime) -> i64 {
+/// 内部工具:把修改时间转毫秒(Option<DateTime> 兼容 zip 2.4)
+pub(crate) fn dt_to_millis(dt: Option<zip::DateTime>) -> i64 {
     use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
+    let dt = match dt {
+        Some(d) => d,
+        None => return 0,
+    };
     let d = NaiveDate::from_ymd_opt(dt.year() as i32, dt.month() as u32, dt.day() as u32)
         .unwrap_or_else(|| NaiveDate::from_ymd_opt(1970, 1, 1).unwrap());
     let t = NaiveTime::from_hms_opt(dt.hour() as u32, dt.minute() as u32, dt.second() as u32)
