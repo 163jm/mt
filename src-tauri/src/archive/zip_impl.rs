@@ -28,7 +28,7 @@ pub fn list(path: &str) -> CmdResult<Vec<ArchiveEntry>> {
                 is_dir: e.is_dir(),
                 size: e.size(),
                 compressed_size: e.compressed_size(),
-                modified: dt_to_millis(e.last_modification_date()),
+                modified: dt_to_millis(e.last_modified()),
             });
         }
     }
