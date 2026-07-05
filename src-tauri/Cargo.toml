@@ -1,0 +1,42 @@
+[package]
+name = "mt-manager-win"
+version = "0.1.0"
+description = "MT 管理器 Windows 版"
+authors = ["you"]
+edition = "2021"
+rust-version = "1.77"
+
+[lib]
+name = "mt_manager_win_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-store = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# 文件系统 / 搜索
+walkdir = "2"
+regex = "1"
+encoding_rs = "0.8"
+# 压缩包
+zip = { version = "2", default-features = false, features = ["deflate", "bzip2", "time"] }
+flate2 = "1"
+tar = "0.4"
+sevenz-rust = "0.6"
+# 时间
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+# 错误处理
+thiserror = "1"
+# 异步
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "fs", "io-util"] }
+log = "0.4"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = ["Win32_Storage_FileSystem", "Win32_Foundation"] }
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]
