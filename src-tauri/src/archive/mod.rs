@@ -2,7 +2,7 @@ pub mod sevenz_impl;
 pub mod tar_impl;
 pub mod zip_impl;
 
-use crate::error::{map_err, CmdResult};
+use crate::error::CmdResult;
 use crate::models::ArchiveEntry;
 use std::path::Path;
 
