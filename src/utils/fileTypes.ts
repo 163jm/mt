@@ -41,7 +41,8 @@ const COLOR_MAP: Record<string, string> = {
   yml: "#cb171e", yaml: "#cb171e", toml: "#9c4221", md: "#3dd6c4",
   // 压缩包
   zip: "#f0a020", rar: "#9b4f96", "7z": "#3dd6c4", tar: "#e8794a", gz: "#e8794a",
-  tgz: "#e8794a", bz2: "#e8794a", xz: "#e8794a",
+  tgz: "#e8794a", bz2: "#e8794a", xz: "#e8794a", tbz2: "#e8794a", tbz: "#e8794a", txz: "#e8794a",
+  jar: "#f0a020", apk: "#3ddc84",
   // 图片
   png: "#a371f7", jpg: "#a371f7", jpeg: "#a371f7", gif: "#a371f7", webp: "#a371f7",
   svg: "#ffb13b", bmp: "#a371f7", ico: "#a371f7",

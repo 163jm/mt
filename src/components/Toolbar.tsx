@@ -1,7 +1,7 @@
 import {
   ArrowLeft, ArrowRight, ArrowUp, RefreshCw, FolderPlus, Copy, Scissors,
   Trash2, Archive, FileSearch, Columns2, Eye, Sun, Moon, Download,
-  PanelLeftClose, PanelLeftOpen, Maximize2,
+  PanelLeftClose, PanelLeftOpen, Maximize2, ArrowLeftRight, CheckSquare, MousePointerClick,
 } from "lucide-react";
 import { useStore } from "@/store/useStore";
 import * as api from "@/lib/invoke";
@@ -27,6 +27,9 @@ export default function Toolbar() {
   const toggleHidden = useStore((s) => s.toggleHidden);
   const toggleTheme = useStore((s) => s.toggleTheme);
   const setSearchOpen = useStore((s) => s.setSearchOpen);
+  const syncPanes = useStore((s) => s.syncPanes);
+  const selectAll = useStore((s) => s.selectAll);
+  const invertSelect = useStore((s) => s.invertSelect);
 
   const other = activePane === "left" ? "right" : "left";
   const otherPane = useStore((s) => s.panes[other]);
@@ -114,6 +117,19 @@ export default function Toolbar() {
     toast("已解压", "success");
   };
 
+  // 添加到压缩包:把对面窗格选中的外部文件,免二次解压地塞进当前窗格正打开的 ZIP
+  const addToArchive = async () => {
+    const otherSelected = Array.from(otherPane.selected);
+    if (!otherSelected.length || !pane.archivePath) return;
+    try {
+      await api.archiveAddEntries(pane.archivePath, otherSelected, otherPane.path);
+      await refresh(activePane);
+      toast(`已添加 ${otherSelected.length} 项到压缩包`, "success");
+    } catch (e) {
+      toast(`添加失败: ${e}`, "error");
+    }
+  };
+
   const Btn = ({ icon: Icon, onClick, title, disabled }: any) => (
     <button className="icon-btn" title={title} onClick={onClick} disabled={disabled}>
       <Icon size={15} />
@@ -131,6 +147,12 @@ export default function Toolbar() {
       <Btn icon={ArrowRight} title="前进 (Alt+→)" onClick={() => goForward(activePane)} disabled={pane.historyIndex >= pane.history.length - 1} />
       <Btn icon={ArrowUp} title="上级目录 (Backspace)" onClick={() => goUp(activePane)} />
       <Btn icon={RefreshCw} title="刷新 (Ctrl+R)" onClick={() => refresh(activePane)} />
+      <Btn
+        icon={ArrowLeftRight}
+        title="同步:让另一窗格跳转到当前路径 (Ctrl+Y)"
+        onClick={() => syncPanes(activePane)}
+        disabled={!dualPane}
+      />
       <div className="divider-v" />
       <Btn icon={FolderPlus} title="新建文件夹 (F7)" onClick={newFolder} disabled={inArchive} />
       <Btn icon={Copy} title="复制到另一窗格 (F5)" onClick={copy} disabled={!selectedList.length || inArchive} />
@@ -139,6 +161,15 @@ export default function Toolbar() {
       <div className="divider-v" />
       <Btn icon={Archive} title="压缩" onClick={compress} disabled={!selectedList.length || inArchive} />
       <Btn icon={Download} title="解压到另一窗格" onClick={extract} disabled={!selectedList.length} />
+      <Btn
+        icon={FolderPlus}
+        title="把另一窗格选中项添加到当前压缩包"
+        onClick={addToArchive}
+        disabled={!inArchive || !otherPane.selected.size}
+      />
+      <div className="divider-v" />
+      <Btn icon={CheckSquare} title="全选 (Ctrl+A)" onClick={() => selectAll(activePane)} />
+      <Btn icon={MousePointerClick} title="反选" onClick={() => invertSelect(activePane)} />
       <div className="divider-v" />
       <Btn icon={FileSearch} title="搜索 (Ctrl+F)" onClick={() => setSearchOpen(true)} />
       <Btn

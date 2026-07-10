@@ -6,7 +6,9 @@ mod models;
 mod search;
 
 use archive::{
-    archive_create, archive_extract_all, archive_extract_entry, archive_list, archive_save_entry,
+    archive_add_entries, archive_create, archive_extract_all, archive_extract_entry,
+    archive_extract_selected, archive_list, archive_preview_entry, archive_remove_entries,
+    archive_save_entry, rar_support_available,
 };
 use config::{load_config, save_config};
 use fs_ops::{
@@ -40,9 +42,14 @@ pub fn run() {
             // 压缩包
             archive_list,
             archive_extract_entry,
+            archive_extract_selected,
+            archive_preview_entry,
             archive_save_entry,
             archive_extract_all,
             archive_create,
+            archive_remove_entries,
+            archive_add_entries,
+            rar_support_available,
             // 搜索
             search_name,
             search_content,

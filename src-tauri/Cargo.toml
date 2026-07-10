@@ -27,6 +27,8 @@ zip = { version = "2", default-features = false, features = ["deflate", "bzip2",
 flate2 = "1"
 tar = "0.4"
 sevenz-rust = "0.6"
+bzip2 = "0.6"
+xz = "0.4"
 # 时间
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 # 错误处理

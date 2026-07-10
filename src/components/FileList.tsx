@@ -194,53 +194,172 @@ export default function FileList({ side, dragOver }: { side: PaneSide; dragOver:
 function buildMenu(entry: DirEntry, side: PaneSide): import("./ContextMenuHost").MenuItem[] {
   const s = () => useStore.getState();
   const isArc = entry.isArchive;
+  const pane = s().panes[side];
+  // 右键的目标是"当前选中集合":若右键的条目已在多选中,则批量作用于整个选区;
+  // 否则(常见的单条目右键)只作用于这一条,行为与安卓 MT / 主流文件管理器一致
+  const targets = pane.selected.has(entry.path) && pane.selected.size > 1
+    ? Array.from(pane.selected)
+    : [entry.path];
+  const multi = targets.length > 1;
+  const otherSide = side === "left" ? "right" : "left";
+  const other = () => s().panes[otherSide];
+  const inArchive = !!pane.archivePath;
+  const ext = entry.name.includes(".") ? entry.name.slice(entry.name.lastIndexOf(".") + 1) : "";
+
   return [
-    { label: "打开", icon: "open", onClick: () => s().openFile(entry, side) },
-    ...(entry.isDir || isArc
+    { label: multi ? `打开首项` : "打开", icon: "open", onClick: () => s().openFile(entry, side) },
+    ...(entry.isDir || isArc || multi
       ? []
       : [
           { label: "编辑", icon: "edit", onClick: () => s().openEditorForPath(entry.path, "text") },
           { label: "HEX 查看", icon: "hex", onClick: () => s().openEditorForPath(entry.path, "hex") },
         ]),
     { sep: true },
-    { label: "复制", icon: "copy", onClick: async () => {
-        const other = side === "left" ? "right" : "left";
+    {
+      label: multi ? `复制 ${targets.length} 项到另一窗格` : "复制到另一窗格",
+      icon: "copy",
+      onClick: async () => {
+        if (inArchive) {
+          const { archiveExtractSelected } = await import("@/lib/invoke");
+          try {
+            await archiveExtractSelected(pane.archivePath!, targets, other().path);
+            s().refresh(otherSide);
+            s().toast(`已解压 ${targets.length} 项`, "success");
+          } catch (e) {
+            s().toast(`解压失败: ${e}`, "error");
+          }
+          return;
+        }
         const { copyPaths } = await import("@/lib/invoke");
-        await copyPaths([entry.path], s().panes[other].path);
-        s().refresh(side); s().refresh(other);
-      } },
-    { label: "移动", icon: "move", onClick: async () => {
-        const other = side === "left" ? "right" : "left";
-        const { movePaths } = await import("@/lib/invoke");
-        await movePaths([entry.path], s().panes[other].path);
-        s().refresh(side); s().refresh(other);
-      } },
-    { label: "重命名", icon: "rename", onClick: async () => {
-        const { promptDialog } = await import("./DialogHost");
-        const name = await promptDialog("重命名", "新名称:", entry.name);
-        if (!name || name === entry.name) return;
-        const { rename, joinPath } = await import("@/lib/invoke");
-        const { dirname } = await import("@/utils/format");
-        const newPath = await joinPath(dirname(entry.path), name);
-        await rename(entry.path, newPath);
-        s().refresh(side);
-      } },
-    ...(isArc ? [{ label: "解压到…", icon: "extract", onClick: async () => {
-        const other = side === "left" ? "right" : "left";
-        const { archiveExtractAll } = await import("@/lib/invoke");
-        await archiveExtractAll(entry.path, s().panes[other].path);
-        s().refresh(other);
-      } }] : []),
+        try {
+          await copyPaths(targets, other().path);
+          s().refresh(side);
+          s().refresh(otherSide);
+          s().toast(`已复制 ${targets.length} 项`, "success");
+        } catch (e) {
+          s().toast(`复制失败: ${e}`, "error");
+        }
+      },
+    },
+    ...(inArchive
+      ? []
+      : [
+          {
+            label: multi ? `移动 ${targets.length} 项到另一窗格` : "移动到另一窗格",
+            icon: "move",
+            onClick: async () => {
+              const { movePaths } = await import("@/lib/invoke");
+              try {
+                await movePaths(targets, other().path);
+                s().refresh(side);
+                s().refresh(otherSide);
+                s().toast(`已移动 ${targets.length} 项`, "success");
+              } catch (e) {
+                s().toast(`移动失败: ${e}`, "error");
+              }
+            },
+          },
+        ]),
+    ...(multi || inArchive
+      ? []
+      : [
+          {
+            label: "重命名",
+            icon: "rename",
+            onClick: async () => {
+              const { promptDialog } = await import("./DialogHost");
+              const name = await promptDialog("重命名", "新名称:", entry.name);
+              if (!name || name === entry.name) return;
+              const { rename, joinPath } = await import("@/lib/invoke");
+              const { dirname } = await import("@/utils/format");
+              const newPath = await joinPath(dirname(entry.path), name);
+              await rename(entry.path, newPath);
+              s().refresh(side);
+            },
+          },
+        ]),
+    ...(isArc && !multi
+      ? [
+          {
+            label: "解压到…",
+            icon: "extract",
+            onClick: async () => {
+              const { archiveExtractAll } = await import("@/lib/invoke");
+              await archiveExtractAll(entry.path, other().path);
+              s().refresh(otherSide);
+            },
+          },
+        ]
+      : []),
+    ...(inArchive
+      ? [
+          {
+            label: multi ? `从压缩包删除 ${targets.length} 项` : "从压缩包删除此项",
+            icon: "delete",
+            danger: true,
+            onClick: async () => {
+              const { confirmDialog } = await import("./DialogHost");
+              if (!(await confirmDialog("删除", `从压缩包中永久删除 ${targets.length} 项?`))) return;
+              const { archiveRemoveEntries } = await import("@/lib/invoke");
+              try {
+                await archiveRemoveEntries(pane.archivePath!, targets);
+                s().refresh(side);
+                s().toast("已删除", "success");
+              } catch (e) {
+                s().toast(`删除失败: ${e}`, "error");
+              }
+            },
+          },
+        ]
+      : []),
     { sep: true },
-    { label: "收藏此路径", icon: "star", danger: false, onClick: () => {
-        s().addBookmark({ name: entry.name, path: entry.path, group: "常用" });
-      } },
-    { label: "删除", icon: "delete", danger: true, onClick: async () => {
-        const { confirmDialog } = await import("./DialogHost");
-        if (!await confirmDialog("删除", `删除 "${entry.name}"?`)) return;
-        const { deletePaths } = await import("@/lib/invoke");
-        await deletePaths([entry.path]);
-        s().refresh(side);
-      } },
+    ...(!multi && !entry.isDir && !inArchive
+      ? [
+          {
+            label: `类选同类型 (.${ext || "无扩展名"})`,
+            icon: "star",
+            onClick: () => s().selectByType(side, ext, false),
+          },
+        ]
+      : []),
+    ...(!multi && entry.isDir && !inArchive
+      ? [{ label: "类选全部文件夹", icon: "star", onClick: () => s().selectByType(side, "", true) }]
+      : []),
+    { label: "全选", icon: "star", onClick: () => s().selectAll(side) },
+    { label: "反选", icon: "star", onClick: () => s().invertSelect(side) },
+    { sep: true },
+    ...(multi || inArchive
+      ? []
+      : [
+          {
+            label: "收藏此路径",
+            icon: "star",
+            danger: false,
+            onClick: () => {
+              s().addBookmark({ name: entry.name, path: entry.path, group: "常用" });
+            },
+          },
+        ]),
+    ...(inArchive
+      ? []
+      : [
+          {
+            label: multi ? `删除 ${targets.length} 项` : "删除",
+            icon: "delete",
+            danger: true,
+            onClick: async () => {
+              const { confirmDialog } = await import("./DialogHost");
+              if (!(await confirmDialog("删除", `永久删除 ${targets.length} 项?此操作不可撤销。`))) return;
+              const { deletePaths } = await import("@/lib/invoke");
+              try {
+                await deletePaths(targets);
+                s().refresh(side);
+                s().toast("已删除", "success");
+              } catch (e) {
+                s().toast(`删除失败: ${e}`, "error");
+              }
+            },
+          },
+        ]),
   ];
 }

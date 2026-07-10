@@ -58,6 +58,26 @@ export function useShortcuts() {
 
       if (inEditable) return;
 
+      // Ctrl+Y 同步:另一窗格跳转到当前路径(安卓 MT 管理器经典功能)。
+      // 放在 inEditable 判断之后,避免与文本编辑器里 Ctrl+Y(重做)冲突。
+      if (ctrl && e.key === "y") {
+        e.preventDefault();
+        s.syncPanes(s.activePane);
+        return;
+      }
+      // Ctrl+A 全选(仅在非输入场景生效,避免与文本框全选冲突)
+      if (ctrl && e.key === "a") {
+        e.preventDefault();
+        s.selectAll(s.activePane);
+        return;
+      }
+      // * 反选(沿用 Total Commander / 经典文件管理器传统按键)
+      if (e.key === "*" || (e.shiftKey && e.key === "8" && ctrl)) {
+        e.preventDefault();
+        s.invertSelect(s.activePane);
+        return;
+      }
+
       // Alt+Left/Right 前进后退
       if (e.altKey && e.key === "ArrowLeft") {
         e.preventDefault();

@@ -66,6 +66,33 @@ pub fn extract_entry(archive: &str, entry: &str, out: &Path) -> CmdResult<()> {
     Ok(())
 }
 
+/// 解压若干指定条目到目标目录,保留内部相对路径结构
+pub fn extract_selected(archive: &str, entries: &[String], dst: &str) -> CmdResult<()> {
+    let want: std::collections::HashSet<&str> = entries.iter().map(|s| s.as_str()).collect();
+    let dst_owned = dst.to_string();
+    let mut reader = SevenZReader::open(archive, Password::empty())
+        .map_err(|e| format!("打开 7z 失败: {e}"))?;
+    reader
+        .for_each_entries(|e, r: &mut dyn Read| {
+            if want.contains(e.name()) {
+                let outpath = Path::new(&dst_owned).join(e.name());
+                if e.is_directory() {
+                    let _ = fs::create_dir_all(&outpath);
+                } else {
+                    if let Some(parent) = outpath.parent() {
+                        let _ = fs::create_dir_all(parent);
+                    }
+                    let mut buf = Vec::new();
+                    r.read_to_end(&mut buf)?;
+                    fs::write(&outpath, &buf)?;
+                }
+            }
+            Ok(true)
+        })
+        .map_err(|e| format!("解压 7z 条目失败: {e}"))?;
+    Ok(())
+}
+
 pub fn extract_all(archive: &str, dst: &str) -> CmdResult<()> {
     let _ = fs::create_dir_all(dst);
     sevenz_rust::decompress_file(archive, dst).map_err(|e| format!("解压 7z 失败: {e}"))?;

@@ -44,8 +44,17 @@ export const archiveExtractAll = (archive: string, dst: string) =>
 export const archiveCreate = (
   sources: string[],
   dst: string,
-  format: "zip" | "7z" | "tar.gz" | "tar"
+  format: "zip" | "7z" | "tar.gz" | "tar" | "tar.bz2" | "tar.xz"
 ) => invoke<void>("archive_create", { sources, dst, format });
+export const archiveExtractSelected = (archive: string, entries: string[], dst: string) =>
+  invoke<void>("archive_extract_selected", { archive, entries, dst });
+export const archivePreviewEntry = (archive: string, entry: string) =>
+  invoke<number[]>("archive_preview_entry", { archive, entry });
+export const archiveRemoveEntries = (archive: string, entries: string[]) =>
+  invoke<void>("archive_remove_entries", { archive, entries });
+export const archiveAddEntries = (archive: string, sources: string[], baseDir: string) =>
+  invoke<void>("archive_add_entries", { archive, sources, baseDir });
+export const rarSupportAvailable = () => invoke<boolean>("rar_support_available");
 
 // ===== 搜索 =====
 export interface NameSearchOpts {

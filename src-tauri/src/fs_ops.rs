@@ -4,7 +4,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
-const ARCHIVE_EXTS: &[&str] = &["zip", "rar", "7z", "tar", "gz", "tgz", "bz2", "xz"];
+const ARCHIVE_EXTS: &[&str] = &[
+    "zip", "rar", "7z", "tar", "gz", "tgz", "bz2", "tbz2", "tbz", "xz", "txz", "jar", "apk",
+];
 
 fn modified_millis(md: &fs::Metadata) -> i64 {
     md.modified()

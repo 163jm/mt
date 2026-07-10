@@ -61,6 +61,17 @@ interface StoreState {
   enterArchive: (pane: PaneSide, archive: string) => Promise<void>;
   exitArchive: (pane: PaneSide) => void;
 
+  /** 类选:选中与给定条目同扩展名(或同为目录)的所有项 */
+  selectByType: (pane: PaneSide, sampleExt: string, isDir: boolean) => void;
+  /** 全选 / 反选 */
+  selectAll: (pane: PaneSide) => void;
+  invertSelect: (pane: PaneSide) => void;
+  /** 同步:让另一窗格跳转到当前窗格所在路径(MT 管理器经典功能) */
+  syncPanes: (from: PaneSide) => Promise<void>;
+  /** 把某窗格选中项批量复制/移动到另一窗格当前目录 */
+  copySelectedToOther: (from: PaneSide) => Promise<void>;
+  moveSelectedToOther: (from: PaneSide) => Promise<void>;
+
   addBookmark: (b: Bookmark) => void;
   removeBookmark: (path: string) => void;
 
@@ -185,7 +196,7 @@ export const useStore = create<StoreState>((set, get) => ({
     try {
       // 如果是压缩包,进入包内浏览
       const lower = path.toLowerCase();
-      const isArchive = /\.(zip|7z|tar|gz|tgz|rar|bz2|xz)$/.test(lower);
+      const isArchive = /\.(zip|jar|apk|7z|tar|gz|tgz|tbz2|tbz|bz2|xz|txz|rar)$/.test(lower);
       let entries: DirEntry[] = [];
       let archivePath: string | null = null;
       if (isArchive && st.panes[pane].archivePath === null) {
@@ -331,6 +342,88 @@ export const useStore = create<StoreState>((set, get) => ({
       const arc = p.archivePath;
       set({ panes: { ...get().panes, [pane]: { ...p, archivePath: null } } });
       get().navigate(pane, dirname(arc), false);
+    }
+  },
+
+  selectByType: (pane, sampleExt, isDir) => {
+    const p = get().panes[pane];
+    const sel = new Set(p.selected);
+    for (const e of p.entries) {
+      if (isDir) {
+        if (e.isDir) sel.add(e.path);
+      } else if (!e.isDir) {
+        const ext = e.name.includes(".") ? e.name.slice(e.name.lastIndexOf(".") + 1).toLowerCase() : "";
+        if (ext === sampleExt.toLowerCase()) sel.add(e.path);
+      }
+    }
+    set({ panes: { ...get().panes, [pane]: { ...p, selected: sel } } });
+  },
+  selectAll: (pane) => {
+    const p = get().panes[pane];
+    const sel = new Set(p.entries.map((e) => e.path));
+    set({ panes: { ...get().panes, [pane]: { ...p, selected: sel } } });
+  },
+  invertSelect: (pane) => {
+    const p = get().panes[pane];
+    const sel = new Set<string>();
+    for (const e of p.entries) {
+      if (!p.selected.has(e.path)) sel.add(e.path);
+    }
+    set({ panes: { ...get().panes, [pane]: { ...p, selected: sel } } });
+  },
+
+  syncPanes: async (from) => {
+    const to = from === "left" ? "right" : "left";
+    const p = get().panes[from];
+    // 若来源窗格在压缩包内部,则让目标窗格跳转到压缩包所在目录(与安卓 MT 行为一致)
+    if (p.archivePath) {
+      await get().navigate(to, dirname(p.archivePath));
+      return;
+    }
+    await get().navigate(to, p.path);
+  },
+
+  copySelectedToOther: async (from) => {
+    const to = from === "left" ? "right" : "left";
+    const p = get().panes[from];
+    const targets = Array.from(p.selected);
+    if (!targets.length) return;
+    if (p.archivePath) {
+      // 压缩包内多选:走批量解压到对面窗口
+      const { archiveExtractSelected } = await import("@/lib/invoke");
+      try {
+        await archiveExtractSelected(p.archivePath, targets, get().panes[to].path);
+        await get().refresh(to);
+        get().toast(`已解压 ${targets.length} 项到 ${get().panes[to].path}`, "success");
+      } catch (e) {
+        get().toast(`解压失败: ${e}`, "error");
+      }
+      return;
+    }
+    const { copyPaths } = await import("@/lib/invoke");
+    try {
+      await copyPaths(targets, get().panes[to].path);
+      await get().refresh(from);
+      await get().refresh(to);
+      get().toast(`已复制 ${targets.length} 项到 ${get().panes[to].path}`, "success");
+    } catch (e) {
+      get().toast(`复制失败: ${e}`, "error");
+    }
+  },
+
+  moveSelectedToOther: async (from) => {
+    const to = from === "left" ? "right" : "left";
+    const p = get().panes[from];
+    const targets = Array.from(p.selected);
+    if (!targets.length || p.archivePath) return; // 压缩包内不支持移动,语义上应为解压+删除,交由用户显式操作
+    const { movePaths } = await import("@/lib/invoke");
+    try {
+      await movePaths(targets, get().panes[to].path);
+      await get().refresh(from);
+      await get().refresh(to);
+      get().toast(`已移动 ${targets.length} 项到 ${get().panes[to].path}`, "success");
+    } catch (e) {
+      get().toast(`移动失败: ${e}`, "error");
     }
   },
 
